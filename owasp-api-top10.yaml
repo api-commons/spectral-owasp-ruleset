@@ -1,0 +1,440 @@
+# @api-common/spectral-owasp-ruleset
+#
+# A curated, OWNED, GROUNDED Spectral ruleset for the OWASP API Security
+# Top 10 (2023). Every rule below is expressed with Spectral's built-in
+# functions only (defined / truthy / falsy / pattern / schema / enumeration /
+# casing / length / alphabetical) so it runs anywhere Spectral runs, with no
+# custom JS.
+#
+# Each rule carries:
+#   - a stable, OWASP-mapped id (the YAML key, e.g. owasp-api1-bola-...)
+#   - a description of the risk it addresses
+#   - a message shown on a finding
+#   - a severity
+#   - a documentationUrl linking to the specific OWASP API Security Top 10 item
+#
+# Provenance: OWASP API Security Top 10 (2023 edition).
+#   https://owasp.org/API-Security/editions/2023/en/0x11-t10/
+#
+# NOT everything in the Top 10 is statically checkable against an OpenAPI
+# document. Object-level authorization decisions (API1/API5), sensitive
+# business-flow abuse (API6), and server-side request forgery (API7) are
+# runtime concerns. Where a Top-10 item cannot be honestly linted, this
+# ruleset ships the strongest *proxy* checks it can (e.g. "is auth even
+# declared on this operation?") and the README documents the residual as
+# advisory. We do not fake coverage.
+#
+# License: Apache-2.0 — Copyright 2026 API Commons (Kin Lane).
+
+extends: []
+
+# Lint OpenAPI 3.x documents. (These rules assume an OpenAPI 3 shape.)
+rules:
+
+  # =========================================================================
+  # API1:2023 — Broken Object Level Authorization (BOLA)
+  # https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/
+  #
+  # BOLA is ultimately a runtime authorization decision and cannot be fully
+  # linted from a static document. The strongest static proxy is: an operation
+  # that exposes object identifiers MUST at least declare that it is
+  # authenticated. An operation with no `security` cannot be doing per-object
+  # authorization at all.
+  # =========================================================================
+
+  owasp-api1-bola-operation-security-defined:
+    description: >-
+      API1:2023 Broken Object Level Authorization. Every operation must declare
+      a `security` requirement. Object-level authorization can only be enforced
+      on an authenticated request; an operation with no security is, by
+      definition, unable to make a per-object access decision. (Static proxy —
+      confirm the actual object-ownership check in code/review.)
+    message: "API1 (BOLA): operation must declare a `security` requirement so per-object authorization can be enforced."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/
+    given: $.paths[*][get,put,post,delete,options,head,patch]
+    then:
+      field: security
+      function: defined
+
+  # =========================================================================
+  # API2:2023 — Broken Authentication
+  # https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+  # =========================================================================
+
+  owasp-api2-auth-security-schemes-defined:
+    description: >-
+      API2:2023 Broken Authentication. The document must define at least one
+      security scheme under `components.securitySchemes`. Without a declared
+      scheme there is no authentication contract to review or enforce.
+    message: "API2 (Broken Authentication): `components.securitySchemes` must define at least one authentication scheme."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    given: $
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [components]
+          properties:
+            components:
+              type: object
+              required: [securitySchemes]
+              properties:
+                securitySchemes:
+                  type: object
+                  minProperties: 1
+
+  owasp-api2-auth-apikey-not-in-url:
+    description: >-
+      API2:2023 Broken Authentication. API keys must not be passed in the query
+      string or path. URLs are logged by proxies, browsers, and servers, leaking
+      the credential. API keys belong in a header or (with care) a cookie.
+    message: "API2 (Broken Authentication): API key `in` must be `header` or `cookie`, never `query` or `path` (credentials leak in URLs)."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    given: $.components.securitySchemes[?(@.type=='apiKey')]
+    then:
+      field: in
+      function: enumeration
+      functionOptions:
+        values:
+          - header
+          - cookie
+
+  owasp-api2-auth-no-http-basic:
+    description: >-
+      API2:2023 Broken Authentication. HTTP Basic authentication transmits
+      reusable credentials on every request and encourages weak password-based
+      access to APIs. Prefer OAuth2, OIDC, or token-based schemes.
+    message: "API2 (Broken Authentication): avoid HTTP Basic auth; prefer OAuth2/OIDC or bearer tokens."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    given: $.components.securitySchemes[?(@.type=='http')]
+    then:
+      field: scheme
+      function: pattern
+      functionOptions:
+        notMatch: "^[Bb]asic$"
+
+  owasp-api2-auth-oauth2-https-urls:
+    description: >-
+      API2:2023 Broken Authentication. OAuth2 authorization, token, and refresh
+      endpoints must use HTTPS. Plaintext OAuth endpoints expose authorization
+      codes and access tokens to interception.
+    message: "API2 (Broken Authentication): OAuth2 flow URLs must use `https://`."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    given: $.components.securitySchemes[*].flows[*]
+    then:
+      - field: authorizationUrl
+        function: pattern
+        functionOptions:
+          match: "^https://"
+      - field: tokenUrl
+        function: pattern
+        functionOptions:
+          match: "^https://"
+      - field: refreshUrl
+        function: pattern
+        functionOptions:
+          match: "^https://"
+
+  # =========================================================================
+  # API3:2023 — Broken Object Property Level Authorization (BOPLA)
+  # https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+  #
+  # Property-level authorization (excessive data exposure + mass assignment) is
+  # a runtime concern, but you cannot review which properties are exposed or
+  # writable if the payloads have no declared schema. These rules enforce that a
+  # reviewable schema exists on both directions of the wire.
+  # =========================================================================
+
+  owasp-api3-bopla-response-schema-defined:
+    description: >-
+      API3:2023 Broken Object Property Level Authorization. Every response body
+      (`content` media type) must declare a `schema`. Without a schema the set
+      of exposed object properties is undefined and excessive data exposure
+      cannot be reviewed.
+    message: "API3 (BOPLA): response `content` must declare a `schema` so exposed properties are reviewable."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+    given: $.paths[*][*].responses[*].content[*]
+    then:
+      field: schema
+      function: defined
+
+  owasp-api3-bopla-request-schema-defined:
+    description: >-
+      API3:2023 Broken Object Property Level Authorization. Every request body
+      (`content` media type) must declare a `schema`. Without a schema, clients
+      can submit arbitrary properties (mass assignment) that the server may bind
+      to privileged fields.
+    message: "API3 (BOPLA): request `content` must declare a `schema` to bound which properties clients may set (mass assignment)."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+    given: $.paths[*][*].requestBody.content[*]
+    then:
+      field: schema
+      function: defined
+
+  # =========================================================================
+  # API4:2023 — Unrestricted Resource Consumption
+  # https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/
+  # =========================================================================
+
+  owasp-api4-resource-array-maxitems:
+    description: >-
+      API4:2023 Unrestricted Resource Consumption. Array schemas should declare
+      `maxItems`. Unbounded arrays let clients request or submit arbitrarily
+      large collections, driving memory and CPU exhaustion.
+    message: "API4 (Resource Consumption): array schema should declare `maxItems` to bound collection size."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/
+    given: $..[?(@.type=='array')]
+    then:
+      field: maxItems
+      function: defined
+
+  owasp-api4-resource-string-maxlength:
+    description: >-
+      API4:2023 Unrestricted Resource Consumption. String schemas should declare
+      `maxLength`. Unbounded strings enable oversized-payload and ReDoS-style
+      resource-exhaustion attacks.
+    message: "API4 (Resource Consumption): string schema should declare `maxLength` to bound input size."
+    severity: info
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/
+    given: $..[?(@.type=='string')]
+    then:
+      field: maxLength
+      function: defined
+
+  owasp-api4-resource-integer-bounds:
+    description: >-
+      API4:2023 Unrestricted Resource Consumption. Integer and number schemas
+      should declare a `maximum`. Unbounded numeric inputs (e.g. a `limit` or
+      `page_size`) let clients demand oversized result sets.
+    message: "API4 (Resource Consumption): numeric schema should declare a `maximum` (e.g. cap page size)."
+    severity: info
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/
+    given: $..[?(@.type=='integer' || @.type=='number')]
+    then:
+      field: maximum
+      function: defined
+
+  # =========================================================================
+  # API5:2023 — Broken Function Level Authorization (BFLA)
+  # https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/
+  #
+  # Function-level authorization is a runtime decision. The static proxy is that
+  # a baseline (default-deny) `security` is declared for the whole API, so no
+  # operation is silently public.
+  # =========================================================================
+
+  owasp-api5-bfla-global-security-defined:
+    description: >-
+      API5:2023 Broken Function Level Authorization. A top-level `security`
+      requirement should be declared as the API-wide default. A global baseline
+      means functions are authenticated unless explicitly opted out, rather than
+      public unless someone remembers to protect them.
+    message: "API5 (BFLA): declare a top-level `security` baseline so operations are protected by default (default-deny)."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa5-broken-function-level-authorization/
+    given: $
+    then:
+      field: security
+      function: defined
+
+  # =========================================================================
+  # API6:2023 — Unrestricted Access to Sensitive Business Flows
+  # https://owasp.org/API-Security/editions/2023/en/0xa6-unrestricted-access-to-sensitive-business-flows/
+  #
+  # Which flows are "sensitive" is business context a linter cannot infer. The
+  # static proxy: state-changing operations should document a 429 response,
+  # signalling that rate limiting / throttling protects the flow from automated
+  # abuse. (Advisory — confirm the actual throttling in the gateway.)
+  # =========================================================================
+
+  owasp-api6-sensitive-flows-rate-limit-response:
+    description: >-
+      API6:2023 Unrestricted Access to Sensitive Business Flows. State-changing
+      operations (POST/PUT/PATCH/DELETE) should document a `429 Too Many
+      Requests` response, signalling that throttling protects the flow from
+      automated abuse (scalping, spam, credential stuffing). Advisory — verify
+      the throttle is actually enforced at the gateway.
+    message: "API6 (Sensitive Business Flows): state-changing operation should document a `429` response (throttling of automated abuse)."
+    severity: info
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa6-unrestricted-access-to-sensitive-business-flows/
+    given: $.paths[*][post,put,patch,delete].responses
+    then:
+      field: "429"
+      function: defined
+
+  # =========================================================================
+  # API7:2023 — Server Side Request Forgery (SSRF)
+  # https://owasp.org/API-Security/editions/2023/en/0xa7-server-side-request-forgery/
+  #
+  # Whether the server fetches a user-supplied URL is not visible in the spec.
+  # The best static proxy: parameters and properties that carry URLs should
+  # declare `format: uri` so their values are at least shape-validated. This is
+  # a weak proxy; SSRF defense is allow-listing at runtime (see README).
+  # =========================================================================
+
+  owasp-api7-ssrf-url-property-format:
+    description: >-
+      API7:2023 Server Side Request Forgery. Schema properties named like a URL
+      (`url`, `uri`, `callback`, `webhook`, `redirect`, `target`) should declare
+      `format: uri` so the value is shape-validated before the server might act
+      on it. Advisory only — real SSRF defense is runtime host allow-listing;
+      this merely flags URL-bearing inputs for review.
+    message: "API7 (SSRF): URL-bearing property should declare `format: uri` and be reviewed for server-side fetch / allow-listing."
+    severity: info
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa7-server-side-request-forgery/
+    given: $..properties[?(@property.match(/url|uri|callback|webhook|redirect|target/i))]
+    then:
+      field: format
+      function: defined
+
+  # =========================================================================
+  # API8:2023 — Security Misconfiguration
+  # https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+  # =========================================================================
+
+  owasp-api8-misconfig-https-servers:
+    description: >-
+      API8:2023 Security Misconfiguration. All `servers` URLs must use HTTPS.
+      Serving an API over plaintext HTTP exposes credentials and data to
+      interception and downgrade attacks.
+    message: "API8 (Security Misconfiguration): server URL must use `https://`, not plaintext `http://`."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+    given: $.servers[*]
+    then:
+      field: url
+      function: pattern
+      functionOptions:
+        match: "^https://"
+
+  owasp-api8-misconfig-no-trace-method:
+    description: >-
+      API8:2023 Security Misconfiguration. The HTTP TRACE method must not be
+      exposed. TRACE enables Cross-Site Tracing (XST) and echoes request data,
+      including sensitive headers, back to the caller.
+    message: "API8 (Security Misconfiguration): the `trace` method must not be defined on a path."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+    given: $.paths[*]
+    then:
+      field: trace
+      function: undefined
+
+  owasp-api8-misconfig-servers-defined:
+    description: >-
+      API8:2023 Security Misconfiguration. The document should declare `servers`.
+      A missing server list leaves the deployment target — and its transport
+      security — undefined and unreviewable.
+    message: "API8 (Security Misconfiguration): declare a `servers` list so the deployment target and its transport are explicit."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+    given: $
+    then:
+      field: servers
+      function: defined
+
+  # =========================================================================
+  # API9:2023 — Improper Inventory Management
+  # https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+  # =========================================================================
+
+  owasp-api9-inventory-info-version:
+    description: >-
+      API9:2023 Improper Inventory Management. `info.version` must be present.
+      Versioning is the backbone of API inventory — you cannot retire, track, or
+      audit an API version you did not name.
+    message: "API9 (Inventory): `info.version` must be defined to support versioned API inventory."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+    given: $.info
+    then:
+      field: version
+      function: truthy
+
+  owasp-api9-inventory-contact-defined:
+    description: >-
+      API9:2023 Improper Inventory Management. `info.contact` should be present
+      so every API in the inventory has a known owner to reach when a
+      vulnerability or a rogue/zombie endpoint is found.
+    message: "API9 (Inventory): declare `info.contact` so the API has a known owner."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+    given: $.info
+    then:
+      field: contact
+      function: defined
+
+  owasp-api9-inventory-operation-description:
+    description: >-
+      API9:2023 Improper Inventory Management. Every operation should carry a
+      `description`. Undocumented operations are how shadow and zombie endpoints
+      hide in an inventory.
+    message: "API9 (Inventory): operation should declare a `description` so it is not a shadow/undocumented endpoint."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+    given: $.paths[*][get,put,post,delete,options,head,patch]
+    then:
+      field: description
+      function: defined
+
+  owasp-api9-inventory-operationid-defined:
+    description: >-
+      API9:2023 Improper Inventory Management. Every operation should declare a
+      unique `operationId`, giving each endpoint a stable identifier for
+      cataloging, testing, and tracking across versions.
+    message: "API9 (Inventory): operation should declare an `operationId` for stable cataloging."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+    given: $.paths[*][get,put,post,delete,options,head,patch]
+    then:
+      field: operationId
+      function: truthy
+
+  owasp-api9-inventory-servers-not-example:
+    description: >-
+      API9:2023 Improper Inventory Management. Server URLs must not point at
+      example.com, localhost, or loopback addresses. Placeholder hosts shipped
+      as production inventory hide the real, un-inventoried endpoint.
+    message: "API9 (Inventory): server URL must not be a placeholder (example.com / localhost / 127.0.0.1)."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+    given: $.servers[*]
+    then:
+      field: url
+      function: pattern
+      functionOptions:
+        notMatch: "(example\\.com|localhost|127\\.0\\.0\\.1)"
+
+  # =========================================================================
+  # API10:2023 — Unsafe Consumption of APIs
+  # https://owasp.org/API-Security/editions/2023/en/0xaa-unsafe-consumption-of-apis/
+  #
+  # How this API consumes *upstream* APIs is mostly invisible in the spec. The
+  # static proxy: every URL the document points others to (externalDocs, etc.)
+  # must be HTTPS, so followers are not sent to plaintext endpoints. See README
+  # for the runtime advisory on validating upstream/third-party responses.
+  # =========================================================================
+
+  owasp-api10-consumption-externaldocs-https:
+    description: >-
+      API10:2023 Unsafe Consumption of APIs. Any `externalDocs` URL must use
+      HTTPS. Directing consumers to plaintext third-party endpoints invites
+      interception and tampering of the data they then consume.
+    message: "API10 (Unsafe Consumption): `externalDocs.url` must use `https://`."
+    severity: info
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xaa-unsafe-consumption-of-apis/
+    given: $..externalDocs
+    then:
+      field: url
+      function: pattern
+      functionOptions:
+        match: "^https://"

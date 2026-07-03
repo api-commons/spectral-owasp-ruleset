@@ -1,0 +1,81 @@
+openapi: 3.0.3
+# Intentionally-insecure OpenAPI used to prove the OWASP ruleset fires.
+# It deliberately violates as many rules as possible.
+info:
+  title: Insecure Widgets API
+  # NOTE: info.version is intentionally omitted -> API9
+  description: A deliberately insecure API for testing the OWASP ruleset.
+  # NOTE: info.contact intentionally omitted -> API9
+servers:
+  - url: http://api.example.com/v1   # http:// -> API8 ; example.com -> API9
+# NOTE: no top-level `security` -> API5
+paths:
+  /widgets:
+    get:
+      # NOTE: no operationId, no description -> API9 ; no security -> API1
+      responses:
+        '200':
+          description: A list of widgets
+          content:
+            application/json:
+              # NOTE: no schema -> API3
+              example: []
+    post:
+      # NOTE: no security -> API1 ; no 429 -> API6 ; no operationId/description -> API9
+      requestBody:
+        content:
+          application/json:
+            # NOTE: no schema -> API3 (mass assignment)
+            example: {}
+      responses:
+        '201':
+          description: Created
+    trace:   # TRACE method -> API8
+      responses:
+        '200':
+          description: Trace echo
+  /widgets/{widgetId}:
+    get:
+      # NOTE: exposes an object id with no security -> API1 (BOLA proxy)
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string   # no maxLength -> API4
+      responses:
+        '200':
+          description: A widget
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string          # no maxLength -> API4
+                  tags:
+                    type: array           # no maxItems -> API4
+                    items:
+                      type: string        # no maxLength -> API4
+                  quantity:
+                    type: integer         # no maximum -> API4
+                  callbackUrl:
+                    type: string          # url-ish name, no format -> API7
+externalDocs:
+  url: http://docs.example.com   # http:// -> API10
+components:
+  securitySchemes:
+    apiKeyQuery:
+      type: apiKey
+      in: query            # API key in URL query -> API2
+      name: api_key
+    basicAuth:
+      type: http
+      scheme: basic        # HTTP Basic -> API2
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: http://auth.example.com/authorize  # http -> API2
+          tokenUrl: http://auth.example.com/token              # http -> API2
+          scopes: {}

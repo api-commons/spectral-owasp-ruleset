@@ -1,0 +1,112 @@
+openapi: 3.0.3
+# A clean OpenAPI that should pass the OWASP ruleset (near-silent).
+info:
+  title: Secure Widgets API
+  version: 1.0.0
+  description: A well-governed API that satisfies the OWASP API Security ruleset.
+  contact:
+    name: API Team
+    email: api@example.org
+    url: https://example.org/support
+servers:
+  - url: https://api.widgets.example.org/v1
+security:
+  - oauth2: [read]
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      description: List widgets, paginated.
+      security:
+        - oauth2: [read]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 100
+      responses:
+        '200':
+          description: A page of widgets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WidgetList'
+    post:
+      operationId: createWidget
+      description: Create a new widget.
+      security:
+        - oauth2: [write]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Widget'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+        '429':
+          description: Too many requests.
+  /widgets/{widgetId}:
+    get:
+      operationId: getWidget
+      description: Get a single widget by id.
+      security:
+        - oauth2: [read]
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: A widget.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Widget'
+externalDocs:
+  url: https://docs.widgets.example.org
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.widgets.example.org/authorize
+          tokenUrl: https://auth.widgets.example.org/token
+          refreshUrl: https://auth.widgets.example.org/refresh
+          scopes:
+            read: Read widgets
+            write: Write widgets
+  schemas:
+    WidgetList:
+      type: object
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Widget'
+    Widget:
+      type: object
+      properties:
+        id:
+          type: string
+          maxLength: 64
+        name:
+          type: string
+          maxLength: 255
+        quantity:
+          type: integer
+          maximum: 1000000
+        callbackUrl:
+          type: string
+          format: uri
+          maxLength: 2048
