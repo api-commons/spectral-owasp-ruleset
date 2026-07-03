@@ -1,0 +1,109 @@
+swagger: "2.0"
+# A clean Swagger 2.0 doc that should pass the OWASP ruleset (near-silent),
+# mirroring fixtures/clean.yaml for OpenAPI 3.x.
+info:
+  title: Secure Widgets API (Swagger 2.0)
+  version: 1.0.0
+  description: A well-governed Swagger 2.0 API that satisfies the OWASP ruleset.
+  contact:
+    name: API Team
+    email: api@example.org
+    url: https://example.org/support
+host: api.widgets.example.org
+basePath: /v1
+schemes:
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+security:
+  - oauth2: [read]
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      description: List widgets, paginated.
+      security:
+        - oauth2: [read]
+      parameters:
+        - name: limit
+          in: query
+          type: integer
+          maximum: 100
+      responses:
+        '200':
+          description: A page of widgets.
+          schema:
+            $ref: '#/definitions/WidgetList'
+    post:
+      operationId: createWidget
+      description: Create a new widget.
+      security:
+        - oauth2: [write]
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/Widget'
+      responses:
+        '201':
+          description: Created.
+          schema:
+            $ref: '#/definitions/Widget'
+        '429':
+          description: Too many requests.
+  /widgets/{widgetId}:
+    get:
+      operationId: getWidget
+      description: Get a single widget by id.
+      security:
+        - oauth2: [read]
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          type: string
+          maxLength: 64
+      responses:
+        '200':
+          description: A widget.
+          schema:
+            $ref: '#/definitions/Widget'
+externalDocs:
+  url: https://docs.widgets.example.org
+securityDefinitions:
+  oauth2:
+    type: oauth2
+    flow: accessCode
+    authorizationUrl: https://auth.widgets.example.org/authorize
+    tokenUrl: https://auth.widgets.example.org/token
+    scopes:
+      read: Read widgets
+      write: Write widgets
+definitions:
+  WidgetList:
+    type: object
+    properties:
+      items:
+        type: array
+        maxItems: 100
+        items:
+          $ref: '#/definitions/Widget'
+  Widget:
+    type: object
+    properties:
+      id:
+        type: string
+        maxLength: 64
+      name:
+        type: string
+        maxLength: 255
+      quantity:
+        type: integer
+        maximum: 1000000
+      callbackUrl:
+        type: string
+        format: uri
+        maxLength: 2048

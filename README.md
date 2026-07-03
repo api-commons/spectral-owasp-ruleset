@@ -3,9 +3,20 @@
 **A curated, owned, grounded [Stoplight Spectral](https://github.com/stoplightio/spectral) ruleset for the [OWASP API Security Top 10 (2023)](https://owasp.org/API-Security/editions/2023/en/0x11-t10/).**
 
 `@api-common/spectral-owasp-ruleset` lets any team add a real **security
-governance layer** to their OpenAPI linting **in one line**. It maps 22 rules to
-all ten OWASP API Security categories, using only Spectral's **built-in
-functions** — no custom JavaScript — so it runs anywhere Spectral runs.
+governance layer** to their OpenAPI linting **in one line**. It maps 22 OWASP
+checks to all ten OWASP API Security categories, using only Spectral's
+**built-in functions** — no custom JavaScript — so it runs anywhere Spectral
+runs.
+
+**Swagger 2.0 and OpenAPI 3.x, at parity.** Spectral auto-detects a document's
+format and each check runs on the shape it applies to. Format-agnostic checks
+(schema bounds, inventory metadata, global security, TRACE, external docs) carry
+no `formats` tag and fire on both. Where the two specs differ structurally —
+security schemes (`components.securitySchemes` vs `securityDefinitions`),
+transport (`servers` vs `host`/`schemes`), and request/response bodies
+(`content` media-type maps vs body parameters + response `schema`) — the 3.x
+rule is tagged `formats: [oas3]` and a `-oas2` twin carries the same OWASP
+grounding for Swagger 2.0. Nothing false-positives or no-ops across formats.
 
 Why this exists: a study of 1,005 public API pipelines found only **14%** run any
 security rules at all, and just **3.4%** emit SARIF for their security tooling.
@@ -77,32 +88,39 @@ item is directly lintable we ship a real check; where it is not, we ship the
 strongest **static proxy** we honestly can (e.g. "is auth even *declared* on
 this operation?") and mark the residual **advisory**. We do not fake coverage.
 
-| Rule id | OWASP item | What it checks | Severity | Coverage |
-| --- | --- | --- | --- | --- |
-| `owasp-api1-bola-operation-security-defined` | API1 BOLA | Every operation declares a `security` requirement (object authz needs an authenticated request) | warn | proxy |
-| `owasp-api2-auth-security-schemes-defined` | API2 Broken Auth | `components.securitySchemes` defines ≥1 scheme | error | lintable |
-| `owasp-api2-auth-apikey-not-in-url` | API2 Broken Auth | API-key schemes use `in: header`/`cookie`, never `query`/`path` | error | lintable |
-| `owasp-api2-auth-no-http-basic` | API2 Broken Auth | No HTTP Basic auth scheme | warn | lintable |
-| `owasp-api2-auth-oauth2-https-urls` | API2 Broken Auth | OAuth2 authorization/token/refresh URLs are `https://` | error | lintable |
-| `owasp-api3-bopla-response-schema-defined` | API3 BOPLA | Every response `content` declares a `schema` (exposed properties reviewable) | warn | proxy |
-| `owasp-api3-bopla-request-schema-defined` | API3 BOPLA | Every request `content` declares a `schema` (bounds mass assignment) | warn | proxy |
-| `owasp-api4-resource-array-maxitems` | API4 Resource Consumption | Array schemas declare `maxItems` | warn | lintable |
-| `owasp-api4-resource-string-maxlength` | API4 Resource Consumption | String schemas declare `maxLength` | info | lintable |
-| `owasp-api4-resource-integer-bounds` | API4 Resource Consumption | Integer/number schemas declare `maximum` | info | lintable |
-| `owasp-api5-bfla-global-security-defined` | API5 BFLA | A top-level `security` baseline is declared (default-deny) | warn | proxy |
-| `owasp-api6-sensitive-flows-rate-limit-response` | API6 Sensitive Business Flows | State-changing ops document a `429` response (throttling) | info | proxy |
-| `owasp-api7-ssrf-url-property-format` | API7 SSRF | URL-bearing properties declare `format: uri` for review | info | proxy |
-| `owasp-api8-misconfig-https-servers` | API8 Security Misconfiguration | All `servers` URLs are `https://` | error | lintable |
-| `owasp-api8-misconfig-no-trace-method` | API8 Security Misconfiguration | No `trace` HTTP method (blocks XST) | error | lintable |
-| `owasp-api8-misconfig-servers-defined` | API8 Security Misconfiguration | `servers` is declared | warn | lintable |
-| `owasp-api9-inventory-info-version` | API9 Inventory | `info.version` is present | error | lintable |
-| `owasp-api9-inventory-contact-defined` | API9 Inventory | `info.contact` is present (known owner) | warn | lintable |
-| `owasp-api9-inventory-operation-description` | API9 Inventory | Every operation has a `description` (no shadow endpoints) | warn | lintable |
-| `owasp-api9-inventory-operationid-defined` | API9 Inventory | Every operation has an `operationId` | warn | lintable |
-| `owasp-api9-inventory-servers-not-example` | API9 Inventory | Server URLs are not placeholders (`example.com`/`localhost`) | warn | lintable |
-| `owasp-api10-consumption-externaldocs-https` | API10 Unsafe Consumption | `externalDocs.url` is `https://` | info | proxy |
+The **Formats** column shows where each check applies: **both** = one
+format-agnostic rule; **3.x + 2.0 twin** = a `formats: [oas3]` rule paired with a
+`-oas2` twin (named below) that checks the equivalent Swagger 2.0 structure.
 
-**22 rules, all 10 OWASP API Security Top 10 (2023) categories covered.**
+| Rule id | OWASP item | What it checks | Severity | Coverage | Formats |
+| --- | --- | --- | --- | --- | --- |
+| `owasp-api1-bola-operation-security-defined` | API1 BOLA | Every operation declares a `security` requirement (object authz needs an authenticated request) | warn | proxy | both |
+| `owasp-api2-auth-security-schemes-defined` | API2 Broken Auth | `components.securitySchemes` defines ≥1 scheme | error | lintable | 3.x + `…-oas2` twin (`securityDefinitions`) |
+| `owasp-api2-auth-apikey-not-in-url` | API2 Broken Auth | API-key schemes use `in: header`/`cookie`, never `query`/`path` | error | lintable | 3.x + `…-oas2` twin (2.0: `in: header` only) |
+| `owasp-api2-auth-no-http-basic` | API2 Broken Auth | No HTTP Basic auth scheme | warn | lintable | 3.x + `…-oas2` twin (2.0: `type: basic`) |
+| `owasp-api2-auth-oauth2-https-urls` | API2 Broken Auth | OAuth2 authorization/token/refresh URLs are `https://` | error | lintable | 3.x + `…-oas2` twin (2.0: url on the scheme, no `flows`) |
+| `owasp-api3-bopla-response-schema-defined` | API3 BOPLA | Every response `content` declares a `schema` (exposed properties reviewable) | warn | proxy | 3.x + `…-oas2` twin (2.0: `responses[2xx].schema`) |
+| `owasp-api3-bopla-request-schema-defined` | API3 BOPLA | Every request `content` declares a `schema` (bounds mass assignment) | warn | proxy | 3.x + `…-oas2` twin (2.0: `in: body` param `schema`) |
+| `owasp-api4-resource-array-maxitems` | API4 Resource Consumption | Array schemas declare `maxItems` | warn | lintable | both |
+| `owasp-api4-resource-string-maxlength` | API4 Resource Consumption | String schemas declare `maxLength` | info | lintable | both |
+| `owasp-api4-resource-integer-bounds` | API4 Resource Consumption | Integer/number schemas declare `maximum` | info | lintable | both |
+| `owasp-api5-bfla-global-security-defined` | API5 BFLA | A top-level `security` baseline is declared (default-deny) | warn | proxy | both |
+| `owasp-api6-sensitive-flows-rate-limit-response` | API6 Sensitive Business Flows | State-changing ops document a `429` response (throttling) | info | proxy | both |
+| `owasp-api7-ssrf-url-property-format` | API7 SSRF | URL-bearing properties declare `format: uri` for review | info | proxy | both |
+| `owasp-api8-misconfig-https-servers` | API8 Security Misconfiguration | All `servers` URLs are `https://` | error | lintable | 3.x + `…-oas2` twin (2.0: `schemes` https/not http) |
+| `owasp-api8-misconfig-no-trace-method` | API8 Security Misconfiguration | No `trace` HTTP method (blocks XST) | error | lintable | both (TRACE is 3.x-only, so vacuous on 2.0) |
+| `owasp-api8-misconfig-servers-defined` | API8 Security Misconfiguration | `servers` is declared | warn | lintable | 3.x + `owasp-api8-misconfig-host-defined-oas2` (2.0: `host`) |
+| `owasp-api9-inventory-info-version` | API9 Inventory | `info.version` is present | error | lintable | both |
+| `owasp-api9-inventory-contact-defined` | API9 Inventory | `info.contact` is present (known owner) | warn | lintable | both |
+| `owasp-api9-inventory-operation-description` | API9 Inventory | Every operation has a `description` (no shadow endpoints) | warn | lintable | both |
+| `owasp-api9-inventory-operationid-defined` | API9 Inventory | Every operation has an `operationId` | warn | lintable | both |
+| `owasp-api9-inventory-servers-not-example` | API9 Inventory | Server URLs are not placeholders (`example.com`/`localhost`) | warn | lintable | 3.x + `owasp-api9-inventory-host-not-example-oas2` (2.0: `host`) |
+| `owasp-api10-consumption-externaldocs-https` | API10 Unsafe Consumption | `externalDocs.url` is `https://` | info | proxy | both |
+
+**22 OWASP checks, all 10 OWASP API Security Top 10 (2023) categories covered —
+on both Swagger 2.0 and OpenAPI 3.x.** 13 checks are single format-agnostic
+rules; 9 are a `formats: [oas3]` rule plus a `-oas2` twin (31 rule entries in
+`owasp-api-top10.yaml`).
 
 ### Lintable vs advisory, by OWASP item
 
@@ -169,21 +187,26 @@ from a committed `.spectral.yaml`.
 
 ## Try it locally
 
-The repo ships two fixtures and a test that proves the ruleset actually fires:
+The repo ships four fixtures (a 3.x pair and a Swagger 2.0 pair) and a test that
+proves the ruleset actually fires on both formats:
 
 ```bash
 npm install                 # installs the Spectral CLI (devDependency)
-npm test                    # asserts insecure.yaml fires all rules, clean.yaml is silent
+npm test                    # lints both format pairs: insecure fires all 10
+                            # families, clean is silent, and no rule throws
 
 # Or lint the fixtures by hand:
-npm run lint:insecure       # 30 findings across 20 rules, all 10 OWASP families
-npm run lint:clean          # 0 findings
+npm run lint:insecure       # 3.x: 30 findings across 20 rules, all 10 families
+npm run lint:clean          # 3.x: 0 findings
+npm run lint:insecure:oas2  # 2.0: 30 findings across 19 rules, all 10 families
+npm run lint:clean:oas2     # 2.0: 0 findings
 ```
 
-`fixtures/insecure.yaml` is an intentionally-broken spec (API key in the query
-string, no operation `security`, an `http://` server, HTTP Basic, a TRACE
-method, missing schemas, missing inventory metadata). `fixtures/clean.yaml` is a
-well-governed spec that passes.
+`fixtures/insecure.yaml` (OpenAPI 3.x) and `fixtures/insecure-oas2.yaml`
+(Swagger 2.0) are intentionally-broken specs (API key in the query string, no
+operation `security`, plaintext transport, HTTP Basic, missing body/response
+schemas, missing inventory metadata). `fixtures/clean.yaml` and
+`fixtures/clean-oas2.yaml` are well-governed specs that pass.
 
 ## How the rules are written
 

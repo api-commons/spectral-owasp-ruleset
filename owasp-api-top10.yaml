@@ -28,7 +28,17 @@
 
 extends: []
 
-# Lint OpenAPI 3.x documents. (These rules assume an OpenAPI 3 shape.)
+# Lint BOTH Swagger/OpenAPI 2.0 and OpenAPI 3.x documents.
+#
+# Spectral auto-detects a document's format (`swagger: "2.0"` -> oas2;
+# `openapi: 3.x` -> oas3/oas3_0/oas3_1) and only runs a rule on a document
+# whose format is in the rule's `formats` — or on every document when a rule
+# declares no `formats`. Rules whose check is valid for both shapes carry no
+# `formats` and fire on whichever path exists. Where the 2.0 and 3.x structures
+# differ (security schemes, servers -> host/schemes, request/response `content`
+# -> body-param/`schema`), the 3.x rule is tagged `formats: [oas3]` and a `-oas2`
+# twin carries the same OWASP grounding for Swagger 2.0. See SWAGGER-2.0-PARITY
+# in the api-validator repo for the authoritative 3.x <-> 2.0 mapping.
 rules:
 
   # =========================================================================
@@ -70,6 +80,7 @@ rules:
     message: "API2 (Broken Authentication): `components.securitySchemes` must define at least one authentication scheme."
     severity: error
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas3]
     given: $
     then:
       function: schema
@@ -86,6 +97,27 @@ rules:
                   type: object
                   minProperties: 1
 
+  owasp-api2-auth-security-schemes-defined-oas2:
+    description: >-
+      API2:2023 Broken Authentication. The document must define at least one
+      security scheme under `securityDefinitions` (Swagger 2.0). Without a
+      declared scheme there is no authentication contract to review or enforce.
+    message: "API2 (Broken Authentication): `securityDefinitions` must define at least one authentication scheme."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas2]
+    given: $
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [securityDefinitions]
+          properties:
+            securityDefinitions:
+              type: object
+              minProperties: 1
+
   owasp-api2-auth-apikey-not-in-url:
     description: >-
       API2:2023 Broken Authentication. API keys must not be passed in the query
@@ -94,6 +126,7 @@ rules:
     message: "API2 (Broken Authentication): API key `in` must be `header` or `cookie`, never `query` or `path` (credentials leak in URLs)."
     severity: error
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas3]
     given: $.components.securitySchemes[?(@.type=='apiKey')]
     then:
       field: in
@@ -103,6 +136,24 @@ rules:
           - header
           - cookie
 
+  owasp-api2-auth-apikey-not-in-url-oas2:
+    description: >-
+      API2:2023 Broken Authentication. API keys must not be passed in the query
+      string. URLs are logged by proxies, browsers, and servers, leaking the
+      credential. In Swagger 2.0 an `apiKey` scheme's `in` is `header` or
+      `query`; it must be `header`.
+    message: "API2 (Broken Authentication): API key `in` must be `header`, never `query` (credentials leak in URLs)."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas2]
+    given: $.securityDefinitions[?(@.type=='apiKey')]
+    then:
+      field: in
+      function: enumeration
+      functionOptions:
+        values:
+          - header
+
   owasp-api2-auth-no-http-basic:
     description: >-
       API2:2023 Broken Authentication. HTTP Basic authentication transmits
@@ -111,9 +162,27 @@ rules:
     message: "API2 (Broken Authentication): avoid HTTP Basic auth; prefer OAuth2/OIDC or bearer tokens."
     severity: warn
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas3]
     given: $.components.securitySchemes[?(@.type=='http')]
     then:
       field: scheme
+      function: pattern
+      functionOptions:
+        notMatch: "^[Bb]asic$"
+
+  owasp-api2-auth-no-http-basic-oas2:
+    description: >-
+      API2:2023 Broken Authentication. HTTP Basic authentication transmits
+      reusable credentials on every request and encourages weak password-based
+      access to APIs. In Swagger 2.0 Basic auth is a security definition with
+      `type: basic`; prefer OAuth2 or token-based schemes instead.
+    message: "API2 (Broken Authentication): avoid HTTP Basic auth (`type: basic`); prefer OAuth2/OIDC or bearer tokens."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas2]
+    given: $.securityDefinitions[*]
+    then:
+      field: type
       function: pattern
       functionOptions:
         notMatch: "^[Bb]asic$"
@@ -126,6 +195,7 @@ rules:
     message: "API2 (Broken Authentication): OAuth2 flow URLs must use `https://`."
     severity: error
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas3]
     given: $.components.securitySchemes[*].flows[*]
     then:
       - field: authorizationUrl
@@ -137,6 +207,27 @@ rules:
         functionOptions:
           match: "^https://"
       - field: refreshUrl
+        function: pattern
+        functionOptions:
+          match: "^https://"
+
+  owasp-api2-auth-oauth2-https-urls-oas2:
+    description: >-
+      API2:2023 Broken Authentication. OAuth2 authorization and token endpoints
+      must use HTTPS. Plaintext OAuth endpoints expose authorization codes and
+      access tokens to interception. In Swagger 2.0 an `oauth2` security
+      definition carries `authorizationUrl`/`tokenUrl` directly (no `flows`).
+    message: "API2 (Broken Authentication): OAuth2 `authorizationUrl`/`tokenUrl` must use `https://`."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/
+    formats: [oas2]
+    given: $.securityDefinitions[?(@.type=='oauth2')]
+    then:
+      - field: authorizationUrl
+        function: pattern
+        functionOptions:
+          match: "^https://"
+      - field: tokenUrl
         function: pattern
         functionOptions:
           match: "^https://"
@@ -160,7 +251,25 @@ rules:
     message: "API3 (BOPLA): response `content` must declare a `schema` so exposed properties are reviewable."
     severity: warn
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+    formats: [oas3]
     given: $.paths[*][*].responses[*].content[*]
+    then:
+      field: schema
+      function: defined
+
+  owasp-api3-bopla-response-schema-defined-oas2:
+    description: >-
+      API3:2023 Broken Object Property Level Authorization. Every successful
+      (2xx) response must declare a `schema`. In Swagger 2.0 the response body
+      schema lives directly on the response object (`responses['200'].schema`),
+      not under a `content` media-type map. Without a schema the set of exposed
+      object properties is undefined and excessive data exposure cannot be
+      reviewed.
+    message: "API3 (BOPLA): 2xx response must declare a `schema` so exposed properties are reviewable."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+    formats: [oas2]
+    given: $.paths[*][*].responses[?(@property.match(/^2\d\d$/))]
     then:
       field: schema
       function: defined
@@ -174,7 +283,24 @@ rules:
     message: "API3 (BOPLA): request `content` must declare a `schema` to bound which properties clients may set (mass assignment)."
     severity: warn
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+    formats: [oas3]
     given: $.paths[*][*].requestBody.content[*]
+    then:
+      field: schema
+      function: defined
+
+  owasp-api3-bopla-request-schema-defined-oas2:
+    description: >-
+      API3:2023 Broken Object Property Level Authorization. Every request body
+      must declare a `schema`. In Swagger 2.0 the request body is a parameter
+      with `in: body`, and its shape is carried on that parameter's `schema`.
+      Without a schema, clients can submit arbitrary properties (mass assignment)
+      that the server may bind to privileged fields.
+    message: "API3 (BOPLA): `in: body` parameter must declare a `schema` to bound which properties clients may set (mass assignment)."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+    formats: [oas2]
+    given: $.paths[*][*].parameters[?(@.in=='body')]
     then:
       field: schema
       function: defined
@@ -309,12 +435,36 @@ rules:
     message: "API8 (Security Misconfiguration): server URL must use `https://`, not plaintext `http://`."
     severity: error
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+    formats: [oas3]
     given: $.servers[*]
     then:
       field: url
       function: pattern
       functionOptions:
         match: "^https://"
+
+  owasp-api8-misconfig-https-servers-oas2:
+    description: >-
+      API8:2023 Security Misconfiguration. The transport must be HTTPS. Swagger
+      2.0 declares transport in the root `schemes` array; it must contain `https`
+      and must not contain plaintext `http`. Serving an API over plaintext HTTP
+      exposes credentials and data to interception and downgrade attacks.
+    message: "API8 (Security Misconfiguration): `schemes` must use `https` and must not include plaintext `http`."
+    severity: error
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+    formats: [oas2]
+    given: $
+    then:
+      field: schemes
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          contains:
+            const: https
+          not:
+            contains:
+              const: http
 
   owasp-api8-misconfig-no-trace-method:
     description: >-
@@ -337,10 +487,26 @@ rules:
     message: "API8 (Security Misconfiguration): declare a `servers` list so the deployment target and its transport are explicit."
     severity: warn
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+    formats: [oas3]
     given: $
     then:
       field: servers
       function: defined
+
+  owasp-api8-misconfig-host-defined-oas2:
+    description: >-
+      API8:2023 Security Misconfiguration. The document should declare its
+      deployment target. Swagger 2.0 expresses this as the root `host` (with
+      `basePath`/`schemes`). A missing host leaves the deployment target — and
+      its transport security — undefined and unreviewable.
+    message: "API8 (Security Misconfiguration): declare a `host` so the deployment target and its transport are explicit."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/
+    formats: [oas2]
+    given: $
+    then:
+      field: host
+      function: truthy
 
   # =========================================================================
   # API9:2023 — Improper Inventory Management
@@ -407,9 +573,27 @@ rules:
     message: "API9 (Inventory): server URL must not be a placeholder (example.com / localhost / 127.0.0.1)."
     severity: warn
     documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+    formats: [oas3]
     given: $.servers[*]
     then:
       field: url
+      function: pattern
+      functionOptions:
+        notMatch: "(example\\.com|localhost|127\\.0\\.0\\.1)"
+
+  owasp-api9-inventory-host-not-example-oas2:
+    description: >-
+      API9:2023 Improper Inventory Management. The deployment host must not point
+      at example.com, localhost, or loopback addresses. Swagger 2.0 declares the
+      target as the root `host`. Placeholder hosts shipped as production
+      inventory hide the real, un-inventoried endpoint.
+    message: "API9 (Inventory): `host` must not be a placeholder (example.com / localhost / 127.0.0.1)."
+    severity: warn
+    documentationUrl: https://owasp.org/API-Security/editions/2023/en/0xa9-improper-inventory-management/
+    formats: [oas2]
+    given: $
+    then:
+      field: host
       function: pattern
       functionOptions:
         notMatch: "(example\\.com|localhost|127\\.0\\.0\\.1)"

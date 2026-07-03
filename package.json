@@ -1,6 +1,6 @@
 {
   "name": "@api-common/spectral-owasp-ruleset",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A curated, owned, grounded Stoplight Spectral ruleset for the OWASP API Security Top 10 (2023) — add a real security governance layer to your OpenAPI linting in one line. An API Commons tool.",
   "type": "module",
   "license": "Apache-2.0",
@@ -32,6 +32,8 @@
     "owasp-api-top10.yaml",
     "fixtures/insecure.yaml",
     "fixtures/clean.yaml",
+    "fixtures/insecure-oas2.yaml",
+    "fixtures/clean-oas2.yaml",
     "README.md",
     "LICENSE"
   ],
@@ -41,6 +43,8 @@
   "scripts": {
     "lint:insecure": "spectral lint fixtures/insecure.yaml -r owasp-api-top10.yaml -f json",
     "lint:clean": "spectral lint fixtures/clean.yaml -r owasp-api-top10.yaml -f json",
+    "lint:insecure:oas2": "spectral lint fixtures/insecure-oas2.yaml -r owasp-api-top10.yaml -f json",
+    "lint:clean:oas2": "spectral lint fixtures/clean-oas2.yaml -r owasp-api-top10.yaml -f json",
     "test": "node scripts/test-ruleset.mjs"
   },
   "devDependencies": {
