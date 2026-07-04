@@ -43,6 +43,13 @@ look like:
 - a **severity** (`error` / `warn` / `info`)
 - a **documentationUrl** deep-linking the specific OWASP API Security Top 10 item
 
+> The canonical API Commons rule-id convention is **Spec / Version / Property /
+> Semantics / Severity** (`<spec>-<version>-<property>-<semantics>-<severity>`), as
+> defined in the [Spectral Ruleset Studio](https://studio.apicommons.org) and the
+> *Governance of APIs* naming-convention chapter. The `owasp-api<N>-…` scheme here
+> is a domain-scoped variant of it — it leads with the OWASP API Security item each
+> rule defends so a finding names the risk it maps to.
+
 ## One-line adoption
 
 **Remote extends** — reference the ruleset by URL, no install (point at the
