@@ -27,7 +27,7 @@ source.
 One of the [API Commons tools](https://apicommons.org/tools/), alongside
 [Spectral Reporter](https://reporter.apicommons.org),
 [API Validator](https://validator.apicommons.org),
-[API Discovery](https://discover.apicommons.org),
+[API Discovery](https://discovery.apicommons.org),
 [API Documentation](https://documentation.apicommons.org),
 [API Reusability](https://reusability.apicommons.org), and
 [MCP Install](https://install.apicommons.org).
@@ -225,9 +225,6 @@ grouped by OWASP item, with the reasoning for each check and each advisory gap.
 
 ## TODOs (for the human picking this up)
 
-- [ ] **Create + push the GitHub repo** `api-commons/spectral-owasp-ruleset`
-      (this tree is committed locally but has **no remote** yet — no push has
-      happened). Once pushed, the raw `extends` URLs above go live.
 - [ ] **npm publish** `@api-common/spectral-owasp-ruleset` (scope `@api-common`
       is singular). `publishConfig.access` is already `public`; run
       `npm publish` once the repo is up.
@@ -243,3 +240,15 @@ A project of [API Evangelist](https://apievangelist.com), maintained under
 [API Commons](https://apicommons.org). API Evangelist offers expert
 [governance services](https://apievangelist.com/services/) when you want help
 standing up API security governance.
+
+## Part of API Commons
+
+An open, browser-first tool from **[API Commons](https://apicommons.org)** — free, no backend, your data stays in your browser. Browse the full set at **[apicommons.org/tools](https://apicommons.org/tools/)**.
+
+**Related tools**
+- [Spectral API Authorization Ruleset](https://github.com/api-commons/spectral-api-authorization-ruleset) — lint OAuth 2.1 / FAPI 2.0 authorization posture at two tiers
+- [Spectral Ruleset Studio](https://studio.apicommons.org) — turn a style guide into an owned, grounded ruleset
+- [Ruleset Commons](https://rulesets.apicommons.org) — adopt a provenanced ruleset by reference
+- [Spectral Reporter](https://reporter.apicommons.org) — Spectral JSON → self-contained HTML governance report
+- [API Validator](https://validator.apicommons.org) — lint OpenAPI/AsyncAPI/Arazzo/JSON Schema in-browser
+- [Governance Pipeline](https://github.com/api-commons/governance-pipeline) — a forkable PR-gated governance pipeline
