@@ -1,9 +1,9 @@
 {
   "name": "@api-common/spectral-owasp-ruleset",
   "version": "0.2.0",
-  "description": "A curated, owned, grounded Stoplight Spectral ruleset for the OWASP API Security Top 10 (2023) — add a real security governance layer to your OpenAPI linting in one line. An API Commons tool.",
+  "description": "A curated, owned, grounded Stoplight Spectral ruleset for the OWASP API Security Top 10 (2023) \u2014 add a real security governance layer to your OpenAPI linting in one line. An API Commons tool.",
   "type": "module",
-  "license": "Apache-2.0",
+  "license": "CC-BY-NC-SA-4.0 AND Apache-2.0",
   "author": "API Evangelist (https://apievangelist.com)",
   "homepage": "https://apicommons.org/tools/",
   "repository": {

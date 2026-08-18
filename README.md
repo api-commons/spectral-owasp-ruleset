@@ -235,11 +235,13 @@ grouped by OWASP item, with the reasoning for each check and each advisory gap.
 
 ## License
 
-[Apache-2.0](./LICENSE) — free and open. Copyright 2026 API Commons (Kin Lane).
-A project of [API Evangelist](https://apievangelist.com), maintained under
-[API Commons](https://apicommons.org). API Evangelist offers expert
-[governance services](https://apievangelist.com/services/) when you want help
-standing up API security governance.
+Two licenses, by kind of thing:
+
+- **Artifacts** — the schemas, rulesets, fixtures, examples and API descriptions — are
+  **[CC BY-NC-SA 4.0](LICENSE)** (Attribution–NonCommercial–ShareAlike).
+- **Code** — the validator, test harness and packaging — is **[Apache-2.0](LICENSE-CODE)**.
+
+API Commons licenses **artifacts** under CC BY-NC-SA 4.0 and **code** under Apache-2.0.
 
 ## Part of API Commons
 
